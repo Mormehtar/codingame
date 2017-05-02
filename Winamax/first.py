@@ -13,6 +13,8 @@ DOWN = "v"
 LEFT = "<"
 RIGHT = ">"
 
+DIRECTIONS_LIST = [UP, DOWN, LEFT, RIGHT]
+
 DIRECTIONS = {
     UP: [0, -1],
     DOWN: [0, 1],
@@ -74,18 +76,45 @@ class Map:
         else:
             target = self.field[new_point[0]][new_point[1]]
             if target is Hole:
-                path.reach(new_point, target)
+                path.reach(new_point, direction, target)
                 target.increase_weight()
             elif target == HAZARD or target.isdigit:
                 path.invalidate()
             else:
-                path.add_point(new_point)
+                path.add_point(new_point, direction)
         return path
+
+    def make_line(self, path, target):
+        direction = path.directions[target]
+        vector = DIRECTIONS[direction]
+        begin = path.path[target]
+        end = path.path[target + 1]
+        now = begin[:]
+        while now[0] != end[0] and now[1] != end[1]:
+            if self.field[now[0], now[1]] is Hole:
+                return False
+            path.backup(now[0], now[1], self.field[now[0], now[1]])
+            self.field[now[0], now[1]] = direction
+
+            now[0] += vector[0]
+            now[1] += vector[1]
+            if self.field[now[0], now[1]] in DIRECTIONS_LIST or self.field[now[0], now[1]] is Ball:
+                return False
+        return True
+
+    def implement_path(self, path):
+        for i in range(0, len(path) - 1):
+            success = self.make_line(path, i)
+            if not success:
+                path.restore(self)
+                return False
+        return True
 
     def search_valid_path(self):
         ball_index = 0
         path_index = 0
         valid_path = None
+        passed_paths = []
         while valid_path is None and 0 <= ball_index < len(self.balls):
             step_valid = self.implement_path(self.balls[ball_index].path[path_index])
 
@@ -95,6 +124,16 @@ class Path:
         self.valid = True
         self.hole = None
         self.path = [start]
+        self.directions = []
+        self.backups = []
+
+    def backup(self, x, y, target):
+        self.backups.append([x, y, target])
+
+    def restore(self, local_field):
+        for element in self.backups:
+            local_field[element[0]][element[1]] = element[2]
+        self.backups = []
 
     def clone(self):
         return copy.deepcopy(self)
@@ -102,14 +141,15 @@ class Path:
     def get_end(self):
         return self.path[-1]
 
-    def add_point(self, point):
+    def add_point(self, point, direction):
         self.path.append(point)
+        self.directions.append(direction)
 
     def invalidate(self):
         self.valid = False
 
-    def reach(self, point, hole):
-        self.add_point(point)
+    def reach(self, point, direction, hole):
+        self.add_point(point, direction)
         self.hole = hole
 
     def is_finished(self):
