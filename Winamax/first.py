@@ -15,6 +15,13 @@ RIGHT = ">"
 
 DIRECTIONS_LIST = [UP, DOWN, LEFT, RIGHT]
 
+OPPOSITES = {
+    UP: DOWN,
+    DOWN: UP,
+    LEFT: RIGHT,
+    RIGHT: LEFT
+}
+
 DIRECTIONS = {
     UP: [0, -1],
     DOWN: [0, 1],
@@ -34,6 +41,15 @@ class Map:
     def clone(self):
         return copy.deepcopy(self)
 
+    def __str__(self):
+        def simplify(char):
+            if char in DIRECTIONS_LIST:
+                return char
+            return EMPTY
+
+        output = list(map(list, zip(*self.field)))
+        return '\n'.join([''.join(map(simplify, output[i])) for i in range(len(output))])
+
     def _clean(self):
         for i in range(self.size[0]):
             for j in range(self.size[1]):
@@ -48,10 +64,10 @@ class Map:
         return 0 <= point[0] < self.size[0] and 0 <= point[1] < self.size[1]
 
     def _build_possible_paths(self, power, path, last_direction=None):
-        directions = [direction for direction in DIRECTIONS.keys() if direction != last_direction]
+        directions = [direction for direction in DIRECTIONS.keys() if last_direction is None or direction != OPPOSITES[last_direction]]
         output = []
         for direction in directions:
-            new_path = self.check_move(path, direction, power)
+            new_path = self.check_move(path.clone(), direction, power)
             if not new_path.valid:
                 continue
             if new_path.is_finished():
@@ -62,7 +78,8 @@ class Map:
 
     def build_paths(self):
         for ball in self.balls:
-            ball.load_paths(self._build_possible_paths(ball.power, Path([ball.x, ball.y])))
+            paths = self._build_possible_paths(ball.power, Path([ball.x, ball.y]))
+            ball.load_paths(paths)
         self.balls.sort(key=lambda a: len(a.paths))
         for ball in self.balls:
             ball.paths.sort(key=lambda a: a.hole.weight)
@@ -71,14 +88,14 @@ class Map:
         modifier = DIRECTIONS[direction]
         last_point = path.get_end()
         new_point = [last_point[i] + power * modifier[i] for i in range(2)]
-        if not self.field.isvalid(new_point):
+        if not self.isvalid(new_point):
             path.invalidate()
         else:
             target = self.field[new_point[0]][new_point[1]]
-            if target is Hole:
+            if isinstance(target, Hole):
                 path.reach(new_point, direction, target)
                 target.increase_weight()
-            elif target == HAZARD or target.isdigit:
+            elif target == HAZARD or isinstance(target, Ball) or target.isdigit():
                 path.invalidate()
             else:
                 path.add_point(new_point, direction)
@@ -90,20 +107,20 @@ class Map:
         begin = path.path[target]
         end = path.path[target + 1]
         now = begin[:]
-        while now[0] != end[0] and now[1] != end[1]:
-            if self.field[now[0], now[1]] is Hole:
+        while now[0] != end[0] or now[1] != end[1]:
+            if isinstance(self.field[now[0]][now[1]], Hole):
                 return False
-            path.backup(now[0], now[1], self.field[now[0], now[1]])
-            self.field[now[0], now[1]] = direction
+            path.backup(now[0], now[1], self.field[now[0]][now[1]])
+            self.field[now[0]][now[1]] = direction
 
             now[0] += vector[0]
             now[1] += vector[1]
-            if self.field[now[0], now[1]] in DIRECTIONS_LIST or self.field[now[0], now[1]] is Ball:
+            if self.field[now[0]][now[1]] in DIRECTIONS_LIST or isinstance(self.field[now[0]][now[1]], Ball):
                 return False
         return True
 
     def implement_path(self, path):
-        for i in range(0, len(path) - 1):
+        for i in range(0, len(path.path) - 1):
             success = self.make_line(path, i)
             if not success:
                 path.restore(self)
@@ -116,7 +133,19 @@ class Map:
         valid_path = None
         passed_paths = []
         while valid_path is None and 0 <= ball_index < len(self.balls):
-            step_valid = self.implement_path(self.balls[ball_index].path[path_index])
+            if path_index >= len(self.balls[ball_index].paths):
+                path_index = passed_paths.pop()
+                ball_index -= 1
+                self.balls[ball_index].paths[path_index].restore(self)
+                path_index += 1
+                continue
+            step_valid = self.implement_path(self.balls[ball_index].paths[path_index])
+            if step_valid:
+                passed_paths.append(path_index)
+                ball_index += 1
+                continue
+            else:
+                path_index += 1
 
 
 class Path:
@@ -127,12 +156,15 @@ class Path:
         self.directions = []
         self.backups = []
 
+    def test_print(self):
+        print('Path starts at: {}, {}, length: {}, it is valid {} it is finished {}'.format(self.path[0][0], self.path[0][1], len(self.path), self.valid, self.is_finished()))
+
     def backup(self, x, y, target):
         self.backups.append([x, y, target])
 
     def restore(self, local_field):
         for element in self.backups:
-            local_field[element[0]][element[1]] = element[2]
+            local_field.field[element[0]][element[1]] = element[2]
         self.backups = []
 
     def clone(self):
@@ -166,6 +198,12 @@ class Ball:
     def load_paths(self, paths):
         self.paths = paths
 
+    def __str__(self):
+        return str(self.power)
+
+    def test_print(self):
+        print('Power: {}, Coordinates: {},{}, Paths: {}'.format(self.power, self.x, self.y, len(self.paths)))
+
 
 class Hole:
     def __init__(self, x, y):
@@ -177,11 +215,28 @@ class Hole:
     def increase_weight(self):
         self.weight += 1
 
+    def __str__(self):
+        return HOLE
 
-width, height = [int(i) for i in input().split()]
-MAP_BOUNDS = [[0, 0], [width, height]]
-transposed_field = [list(input()) for i in range(height)]
 
+def get_input():
+    width, height = [int(i) for i in input().split()]
+    return [list(input()) for i in range(height)], width, height
+
+
+def simulate_data(str_map):
+    resulting_field = [list(row) for row in str_map.split('\n')]
+    calculated_width = len(resulting_field)
+    calculated_height = len(resulting_field[0])
+    return resulting_field, calculated_width, calculated_height
+
+# string_map = """2.X
+# X.H
+# .H1"""
+
+transposed_field, width, height = get_input()
+# transposed_field, width, height = simulate_data(string_map)
 field = Map(list(map(list, zip(*transposed_field))), [width, height])
 field.build_paths()
-
+field.search_valid_path()
+print(field)
