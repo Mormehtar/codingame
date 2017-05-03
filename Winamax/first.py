@@ -226,17 +226,22 @@ def get_input():
 
 def simulate_data(str_map):
     resulting_field = [list(row) for row in str_map.split('\n')]
-    calculated_width = len(resulting_field)
-    calculated_height = len(resulting_field[0])
+    calculated_height = len(resulting_field)
+    calculated_width = len(resulting_field[0])
     return resulting_field, calculated_width, calculated_height
 
-# string_map = """2.X
-# X.H
-# .H1"""
 
-transposed_field, width, height = get_input()
-# transposed_field, width, height = simulate_data(string_map)
-field = Map(list(map(list, zip(*transposed_field))), [width, height])
-field.build_paths()
-field.search_valid_path()
-print(field)
+def test_print(input):
+    print('\n'.join([''.join(i) for i in input]))
+
+
+def solve(input_map, width, height):
+    field = Map(list(map(list, zip(*input_map))), [width, height])
+    field.build_paths()
+    field.search_valid_path()
+    print(field)
+
+if __name__ == '__main__':
+    transposed_field, width, height = get_input()
+    # test_print(transposed_field)
+    solve(transposed_field, width, height)
