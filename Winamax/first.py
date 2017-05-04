@@ -73,6 +73,8 @@ class Map:
             if new_path.is_finished():
                 output.append(new_path)
                 continue
+            if power == 1:
+                continue
             output += self._build_possible_paths(power - 1, new_path, direction)
         return output
 
@@ -80,9 +82,20 @@ class Map:
         for ball in self.balls:
             paths = self._build_possible_paths(ball.power, Path([ball.x, ball.y]))
             ball.load_paths(paths)
-        self.balls.sort(key=lambda a: len(a.paths))
+        clean_balls = []
+        clean_holes = []
+        other = []
         for ball in self.balls:
             ball.paths.sort(key=lambda a: a.hole.weight)
+            if len(ball.paths) == 1:
+                clean_balls.append(ball)
+                continue
+            if ball.paths[0].hole.weight == 1:
+                clean_holes.append(ball)
+                continue
+            other.append(ball)
+        other.sort(key=lambda a: len(a.paths))
+        self.balls = clean_balls + clean_holes + other
 
     def check_move(self, path, direction, power):
         modifier = DIRECTIONS[direction]
@@ -130,19 +143,33 @@ class Map:
     def search_valid_path(self):
         ball_index = 0
         path_index = 0
-        valid_path = None
-        passed_paths = []
-        while valid_path is None and 0 <= ball_index < len(self.balls):
+        revert_data = []
+        while 0 <= ball_index < len(self.balls):
             if path_index >= len(self.balls[ball_index].paths):
-                path_index = passed_paths.pop()
+                if len(revert_data) == 0:
+                    # print('Path not found!')
+                    raise Exception('Path not found!')
+                    break
+                revert_element = revert_data.pop()
+                revert_element[1].restore(self)
+                revert_element[1].hole.filled = False
+
                 ball_index -= 1
-                self.balls[ball_index].paths[path_index].restore(self)
-                path_index += 1
+                path_index = revert_element[0] + 1
                 continue
-            step_valid = self.implement_path(self.balls[ball_index].paths[path_index])
+            # self.balls[ball_index].test_print()
+            # self.balls[ball_index].paths[path_index].test_print()
+            if self.balls[ball_index].paths[path_index].hole.filled:
+                # self.balls[ball_index].paths[path_index].hole.test_print()
+                step_valid = False
+            else:
+                step_valid = self.implement_path(self.balls[ball_index].paths[path_index])
             if step_valid:
-                passed_paths.append(path_index)
+                # self.balls[ball_index].paths[path_index].hole.test_print()
+                self.balls[ball_index].paths[path_index].hole.filled = True
+                revert_data.append([path_index, self.balls[ball_index].paths[path_index]])
                 ball_index += 1
+                path_index = 0
                 continue
             else:
                 path_index += 1
@@ -155,6 +182,9 @@ class Path:
         self.path = [start]
         self.directions = []
         self.backups = []
+
+    def __str__(self):
+        return '{}, {}, {}'.format(self.path, self.directions, self.valid)
 
     def test_print(self):
         print('Path starts at: {}, {}, length: {}, it is valid {} it is finished {}'.format(self.path[0][0], self.path[0][1], len(self.path), self.valid, self.is_finished()))
@@ -202,7 +232,7 @@ class Ball:
         return str(self.power)
 
     def test_print(self):
-        print('Power: {}, Coordinates: {},{}, Paths: {}'.format(self.power, self.x, self.y, len(self.paths)))
+        print('Power: {}, Coordinates: {}, {} Paths: {}'.format(self.power, self.x, self.y, len(self.paths)))
 
 
 class Hole:
@@ -214,6 +244,9 @@ class Hole:
 
     def increase_weight(self):
         self.weight += 1
+
+    def test_print(self):
+        print('Hole', self.x, self.y, self.weight, self.filled)
 
     def __str__(self):
         return HOLE
@@ -232,7 +265,9 @@ def simulate_data(str_map):
 
 
 def test_print(input):
+    print('*' * 40)
     print('\n'.join([''.join(i) for i in input]))
+    print('*' * 40)
 
 
 def solve(input_map, width, height):
