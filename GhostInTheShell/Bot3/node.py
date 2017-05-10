@@ -1,5 +1,6 @@
 from GhostInTheShell.Bot3.events import *
 from GhostInTheShell.Bot3.links import *
+from GhostInTheShell.Bot3.constants import *
 
 
 class NodeCore:
@@ -29,6 +30,7 @@ class Node:
         self.incoming_events = Events()
         self.links = Links(self)
         self.is_border = False
+        self.max_leave = 0
 
     def update(self, node_core):
         self.core = node_core
@@ -45,6 +47,7 @@ class Node:
     def end_input(self):
         self.incoming_events.end_input()
         self.check_if_border()
+        self.max_leave = self.incoming_events.calculate_max_leave(self.core) if self.core.owner == MY else 0
 
     def start_turn(self):
         self.incoming_events = Events()
