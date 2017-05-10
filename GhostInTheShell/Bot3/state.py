@@ -18,7 +18,7 @@ class State:
             self.enemy_bombs -= 1
             self._enemy_bombs_in_process[source].append(eta)
 
-    def end_input(self):
+    def start_turn(self):
         sources_to_delete = []
         for source, track_bomb in self._enemy_bombs_in_process:
             track_bomb = [eta-1 for eta in track_bomb if eta > 1]

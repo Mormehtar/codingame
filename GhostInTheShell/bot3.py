@@ -228,4 +228,5 @@ while True:
 
     field.end_input()
     # print(field.choose_move())
+    # print(message, file=sys.stderr)
     print(WAIT)
