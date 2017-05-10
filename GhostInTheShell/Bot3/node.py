@@ -1,19 +1,5 @@
 from GhostInTheShell.Bot3.events import *
-
-
-class Link:
-    def __init__(self, node, distance):
-        self.node = node
-        self.distance = distance
-
-
-class Links:
-    def __init__(self, node):
-        self.node = node
-        self.links = []
-
-    def add_link(self, node, distance):
-        self.links.append(Link(node, distance))
+from GhostInTheShell.Bot3.links import *
 
 
 class NodeCore:
@@ -24,6 +10,17 @@ class NodeCore:
         self.production = production
         self.repairing = repairing
 
+    def clone(self):
+        return NodeCore(self.node, self.owner, self.cyborgs, self.production, self.repairing)
+
+    def simulate_turns(self, turns):
+        turns -= self.repairing
+        if turns <= 0:
+            self.repairing = -turns
+        else:
+            self.repairing = 0
+            self.cyborgs += self.production * turns
+
 
 class Node:
     def __init__(self, node_id):
@@ -31,6 +28,7 @@ class Node:
         self.core = None
         self.incoming_events = Events()
         self.links = Links(self)
+        self.is_border = False
 
     def update(self, node_core):
         self.core = node_core
@@ -46,6 +44,12 @@ class Node:
 
     def end_input(self):
         self.incoming_events.end_input()
+        self.check_if_border()
 
     def start_turn(self):
         self.incoming_events = Events()
+
+    def check_if_border(self):
+        self.is_border = not all(
+            map(lambda neighbour: neighbour.core.owner == self.core.owner, self.links.get_neighbours())
+        )

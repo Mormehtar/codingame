@@ -2,6 +2,9 @@
 MAX_BOMBS = 2
 MAX_DISTANCE = 20
 
+# Strategy settings
+BOMB_PROHIBITION = 2
+
 # Owners
 ENEMY = -1
 NEUTRAL = 0

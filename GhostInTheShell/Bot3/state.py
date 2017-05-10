@@ -5,7 +5,9 @@ class State:
     def __init__(self):
         self.my_bombs = MAX_BOMBS
         self.enemy_bombs = MAX_BOMBS
+        self.allow_bombs = False
 
+        self._bombs_prohibited = BOMB_PROHIBITION
         self._enemy_bombs_in_process = {}
 
     def track_enemy_bomb(self, source, eta):
@@ -19,6 +21,8 @@ class State:
             self._enemy_bombs_in_process[source].append(eta)
 
     def start_turn(self):
+        self._bombs_prohibited -= 1
+        self.allow_bombs = self._bombs_prohibited < 0
         sources_to_delete = []
         for source, track_bomb in self._enemy_bombs_in_process:
             track_bomb = [eta-1 for eta in track_bomb if eta > 1]
