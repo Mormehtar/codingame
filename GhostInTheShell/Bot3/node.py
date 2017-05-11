@@ -32,6 +32,9 @@ class Node:
         self.is_border = False
         self.is_enemy_border = False
         self.max_leave = 0
+        self.bordering = set()
+        self.max_distance = 0
+        self.power_on_max_distance = 0
 
     def update(self, node_core):
         self.core = node_core
@@ -44,6 +47,9 @@ class Node:
 
     def incoming_bomb(self, bomb):
         self.incoming_events.add_event(bomb)
+
+    def end_init(self, statistics):
+        self.max_distance = statistics.max_distance
 
     def end_input(self):
         self.incoming_events.end_input()
@@ -58,10 +64,16 @@ class Node:
     def check_if_border(self):
         self.is_border = False
         self.is_enemy_border = False
+        self.bordering = set()
         for neighbour in self.links.get_neighbours():
             if neighbour.core.owner != self.core.owner:
+                self.bordering.add(neighbour.core.owner)
                 self.is_border = True
                 if neighbour.core.owner != NEUTRAL:
                     self.is_enemy_border = True
-            if self.is_border and self.is_enemy_border:
+            if len(self.bordering) == 2:
                 return
+
+    def calculate_power_on_max_distance(self):
+        state = self.incoming_events.calculate_state_on_distance(self.core, self.max_distance)
+        self.power_on_max_distance = state.owner * self.owner * state.cyborgs

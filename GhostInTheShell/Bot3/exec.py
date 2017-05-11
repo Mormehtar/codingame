@@ -1,8 +1,10 @@
 from GhostInTheShell.Bot3.field import *
+from GhostInTheShell.Bot3.turn import *
 
 field = Field(int(input()))
 for _ in range(int(input())):
     field.connect(*[int(j) for j in input().split()])
+field.end_init()
 
 # game loop
 while True:
@@ -26,4 +28,4 @@ while True:
 
     field.end_input()
     # print(field.choose_move())
-    print(WAIT_COMMAND)
+    print(Wait())

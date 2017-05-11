@@ -24,6 +24,10 @@ class Field:
         [node.end_input() for node in self.nodes]
         self.statistics.end_input()
 
+    def end_init(self):
+        self.statistics.finish_init()
+        [node.end_init(self.statistics) for node in self.nodes]
+
     def update_factory(self, node_id, owner, cyborgs, production, repairing):
         node_core = NodeCore(owner, owner, cyborgs, production, repairing)
         self.nodes[node_id].update(node_core)
