@@ -30,6 +30,7 @@ class Node:
         self.incoming_events = Events()
         self.links = Links(self)
         self.is_border = False
+        self.is_enemy_border = False
         self.max_leave = 0
 
     def update(self, node_core):
@@ -47,12 +48,20 @@ class Node:
     def end_input(self):
         self.incoming_events.end_input()
         self.check_if_border()
+
+    def calculate_max_leave(self):
         self.max_leave = self.incoming_events.calculate_max_leave(self.core) if self.core.owner == MY else 0
 
     def start_turn(self):
         self.incoming_events = Events()
 
     def check_if_border(self):
-        self.is_border = not all(
-            map(lambda neighbour: neighbour.core.owner == self.core.owner, self.links.get_neighbours())
-        )
+        self.is_border = False
+        self.is_enemy_border = False
+        for neighbour in self.links.get_neighbours():
+            if neighbour.core.owner != self.core.owner:
+                self.is_border = True
+                if neighbour.core.owner != NEUTRAL:
+                    self.is_enemy_border = True
+            if self.is_border and self.is_enemy_border:
+                return
