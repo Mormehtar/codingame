@@ -1,3 +1,6 @@
+from GhostInTheShell.Bot3.constants import *
+
+
 class Event:
     def __init__(self, owner, eta):
         self.owner = owner
@@ -21,7 +24,7 @@ class Troop(Event):
         return self.owner * core.owner * self.cyborgs
 
     def emulate_event(self, core):
-        pass
+        core.modifier[self.owner] += self.cyborgs
 
 
 class Bomb(Event):
@@ -30,7 +33,8 @@ class Bomb(Event):
         self.priority = 900
 
     def emulate_event(self, core):
-        core.cyborgs -= max(10, core.cyborgs // 2)
+        core.cyborgs -= min(max(BOMB_MINIMAL_CASUALTY, core.cyborgs // BOMB_MULTIPLIER), core.cyborgs)
+        core.repairing = BOMB_REPAIRING
 
 
 class Events:
@@ -79,7 +83,8 @@ class Events:
                 break
             core.simulate_turns(turn - last_turn)
             for event in self.events[turn]:
-                pass
+                event.emulate_event(core)
+            core.use_modifier()
             last_turn = turn
         if last_turn < distance:
             core.simulate_turns(distance - last_turn)

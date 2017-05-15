@@ -1,5 +1,8 @@
 # Game settings
 MAX_BOMBS = 2
+BOMB_REPAIRING = 5
+BOMB_MINIMAL_CASUALTY = 10
+BOMB_MULTIPLIER = 2
 MAX_DISTANCE = 20
 
 # Strategy settings

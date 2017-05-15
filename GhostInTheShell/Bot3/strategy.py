@@ -25,6 +25,7 @@ class Strategy:
         for node in self.field.nodes:
             if node.core.owner == MY:
                 self.my_nodes.append(node)
+                node.calculate_power_on_max_distance()
                 if node.is_border and node.is_enemy_border:
                     self.my_enemy_border_nodes.append(node)
                 elif node.is_border:
@@ -59,8 +60,7 @@ class Strategy:
             for neighbour in neighbours:
                 if reserve <= neighbour.node.max_leave:
                     break
-                # FIXME NOT max_leave, but power_on_max_distance
-                move = (reserve + neighbour.node.max_leave) // 2
+                move = min((node.power_on_max_distance + neighbour.node.power_on_max_distance) // 2, reserve)
                 self.moves.make_turn(Move(node.id, neighbour.node.id, move))
                 node.incoming_troop(Troop(MY, -move, 0))
                 neighbour.node.incoming_troop(Troop(MY, move, 0))
@@ -68,4 +68,7 @@ class Strategy:
                     neighbour.node.calculate_max_leave()
                 else:
                     neighbour.node.max_leave += move
+                neighbour.power_on_max_distance += move
+                node.power_on_max_distance -= move
+                reserve -= move
             node.max_leave = reserve

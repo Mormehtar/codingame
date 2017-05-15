@@ -10,6 +10,10 @@ class NodeCore:
         self.cyborgs = cyborgs
         self.production = production
         self.repairing = repairing
+        self.incoming = {
+            MY: 0,
+            ENEMY: 0
+        }
 
     def clone(self):
         return NodeCore(self.node, self.owner, self.cyborgs, self.production, self.repairing)
@@ -21,6 +25,19 @@ class NodeCore:
         else:
             self.repairing = 0
             self.cyborgs += self.production * turns
+
+    def use_modifier(self):
+        if self.owner == NEUTRAL:
+            modifier = self.incoming[MY] - self.incoming[ENEMY]
+            self.cyborgs -= abs(modifier)
+            if self.cyborgs < 0:
+                self.cyborgs = -self.cyborgs
+                self.owner = MY if modifier > 0 else ENEMY
+            return
+        self.cyborgs += self.incoming[self.owner] - self.incoming[-self.owner]
+        if self.cyborgs < 0:
+            self.owner = -self.owner
+            self.cyborgs = -self.cyborgs
 
 
 class Node:
@@ -76,4 +93,4 @@ class Node:
 
     def calculate_power_on_max_distance(self):
         state = self.incoming_events.calculate_state_on_distance(self.core, self.max_distance)
-        self.power_on_max_distance = state.owner * self.owner * state.cyborgs
+        self.power_on_max_distance = state.owner * self.core.owner * state.cyborgs
