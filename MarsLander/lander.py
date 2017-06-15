@@ -78,7 +78,7 @@ class Turn:
 
 
 class Planner:
-    def __init__(self, mars, position, speed, rotation, thrust):
+    def __init__(self, position, speed, rotation, thrust):
         self.position = position
         self.speed = speed
         self.rotation = rotation
@@ -94,12 +94,9 @@ class Planner:
 
 
 def init():
-    n = int(input())  # the number of points used to draw the surface of Mars.
+    n = int(input())
     mars = Map()
     for i in range(n):
-        # land_x: X coordinate of a surface point. (0 to 6999)
-        # land_y: Y coordinate of a surface point.
-        # By linking all the points together in a sequential fashion, you form the surface of Mars.
         land_x, land_y = [int(j) for j in input().split()]
         mars.add_point(Point(land_x, land_y))
 
@@ -108,18 +105,9 @@ def init():
 
 
 def make_turn(mars):
-    # hs: the horizontal speed (in m/s), can be negative.
-    # max landing hs 40
-    # vs: the vertical speed (in m/s), can be negative.
-    # max landing vs 20
-    # f: the quantity of remaining fuel in liters.
     # r: the rotation angle in degrees (-90 to 90).
-    # r change = +/- 15
-    # p: the thrust power (0 to 4).
-    # p change = +/- 1
     x, y, hs, vs, f, r, p = [int(i) for i in input().split()]
     planner = Planner(Point(x, y), Point(hs, vs), r, p)
-    # R P. R is the desired rotation angle. P is the desired thrust power.
     print(planner.get_turn(mars))
 
 
