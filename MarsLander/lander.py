@@ -92,6 +92,22 @@ class Planner:
 
         return Turn(self.rotation, self.thrust)
 
+    def get_landing_turn(self, rotation, thrust):
+        if abs(rotation) <= MAX_ROTATION:
+            _rotation = 0
+        elif rotation > 0:
+            _rotation = rotation - MAX_ROTATION
+        else:
+            _rotation = rotation + MAX_ROTATION
+
+        _thrust = 0 if thrust <= 1 else thrust - 1
+
+        return _rotation, _thrust
+
+    def predict_fly(self, mars):
+        _local_rotation, _local_thrust = self.get_landing_turn(self.rotation, self.thrust)
+        _crush = False
+
 
 def init():
     n = int(input())
