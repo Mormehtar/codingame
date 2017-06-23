@@ -190,7 +190,6 @@ class Strategy:
                     pods_to_by -= stack
         if pods_to_by <= 0:
             return
-        # zones = list(self.field.zones.values())
         zones = [
             zone for zone in self.field.zones.values()
             if (zone.owner == -1 or zone.owner == self.field.player) and
