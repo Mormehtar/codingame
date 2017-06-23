@@ -190,12 +190,13 @@ class Strategy:
                     pods_to_by -= stack
         if pods_to_by <= 0:
             return
+        # zones = list(self.field.zones.values())
         zones = [
             zone for zone in self.field.zones.values()
             if (zone.owner == -1 or zone.owner == self.field.player) and
-               any(map(lambda x: x.owner != -1 and x.owner != self.field.player, zone.links))
+            any(map(lambda x: x.owner != -1 and x.owner != self.field.player, zone.links))
         ]
-        zones.sort(key=lambda x: x.move_attractor.get_value())
+        zones.sort(key=lambda x: x.move_attractor.get_value() + random.random())
         while len(zones) > 0 and pods_to_by > 0:
             zone = zones.pop()
             stack = min(pods_to_by, self.max_deaths_in_turn)
@@ -222,6 +223,11 @@ class Strategy:
             return MoveAttractor(zone.platinum * self.neutral_platinum_weight + enemy_pods - my_pods)
         if zone.owner != self.field.player:
             return MoveAttractor(zone.platinum * self.foreign_platinum_weight + enemy_pods - my_pods)
+        enemies_around = 0
+        for link in zone.links:
+            enemies_around += link.get_pods_not_for_player(self.field.player)
+        if enemies_around > 0:
+            return MoveAttractor(zone.platinum * self.foreign_platinum_weight + enemies_around - my_pods)
         return MoveAttractor()
 
 
@@ -278,15 +284,15 @@ while True:
     print('Renew field', file=sys.stderr)
     strategy.recalculate_move_potentials()
     print('recalculate move potentials', file=sys.stderr)
-    turn = Turn()
-    strategy.calc_moves(turn)
+    now_turn = Turn()
+    strategy.calc_moves(now_turn)
     print('calc moves', file=sys.stderr)
-    strategy.calc_purchases(turn)
+    strategy.calc_purchases(now_turn)
     print('calc purchases', file=sys.stderr)
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr)
 
 
     # first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
-    print(turn.get_moves())
-    print(turn.get_purchases())
+    print(now_turn.get_moves())
+    print(now_turn.get_purchases())
