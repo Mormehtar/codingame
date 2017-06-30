@@ -135,7 +135,7 @@ class BaseAttractor:
 
 class ReconAttractor(BaseAttractor):
     def get_linked_attractor_value(self, zone):
-        return self.value - zone.enemies_around - 1
+        return self.value - 1 - zone.my_around
 
     def stopper(self, zone):
         return not zone.reconed
@@ -305,7 +305,7 @@ class Strategy:
         self.field.drop_attractor('recon')
         to_update = []
         for zone in self.field.zones:
-            if zone.reconed:
+            if zone.reconed and zone.owner != self.field.enemy:
                 continue
             attractor = zone.get_attractor('recon')
             attractor.value = max(attractor.value, 0)
@@ -333,8 +333,8 @@ class Strategy:
         pass
 
     def renew_potentials(self):
-        print('build_enemy_attractors', file=sys.stderr)
-        self.build_enemy_attractors()
+        # print('build_enemy_attractors', file=sys.stderr)
+        # self.build_enemy_attractors()
         print('build_enemy_menace_attractors', file=sys.stderr)
         self.build_enemy_menace_attractors()
         print('build_recon_attractors', file=sys.stderr)
@@ -359,34 +359,34 @@ class Strategy:
         self.free_pods.build_free_pods(self.field.my_pod_zones)
         print(self.pods_to_move, file=sys.stderr)
 
-    def send_pods_to_stop_enemy(self):
-        print('send_pods_to_stop_enemy', file=sys.stderr)
-        max_defending_pods = (self.field.enemy_pods - self.enemy_hq.enemy_pods) * self.pods_overcome_modifier
-        defending_pods = 0
-        if max_defending_pods <= 0 or self.pods_to_move <= 0:
-            return
-        defending_zones = self.free_pods.get_zones()
-        print(max_defending_pods, len(defending_zones), file=sys.stderr)
-        defending_zones.sort(key=lambda x: x.get_attractor('enemy_pods').value + x.get_attractor('my_hq').value)
-        while len(defending_zones) > 0 and defending_pods < max_defending_pods and self.pods_to_move > 0:
-            zone = defending_zones.pop()
-            zone.links.sort(key=lambda x: x.get_attractor('enemy_pods').value, reverse=True)
-            for link in zone.links:
-                if link.get_attractor('enemy_pods').value > zone.get_attractor('enemy_pods').value:
-                    stack = min(self.pods_overcome_modifier, self.pods_to_move, self.free_pods[zone.id])
-                    self.pods_to_move -= stack
-                    self.prepared_turn.make_turn(zone, link, stack)
-                    value = self.free_pods.change_pods(zone, -stack)
-                    if value <= 0:
-                        break
-                elif link.get_attractor('enemy_pods').value == zone.get_attractor('enemy_pods').value:
-                    stack = min(self.pods_overcome_modifier, self.pods_to_move, self.free_pods.get_pods(zone))
-                    self.pods_to_move -= stack
-                    value = self.free_pods.change_pods(zone, -stack)
-                    if value <= 0:
-                        break
-                else:
-                    break
+    # def send_pods_to_stop_enemy(self):
+    #     print('send_pods_to_stop_enemy', file=sys.stderr)
+    #     max_defending_pods = (self.field.enemy_pods - self.enemy_hq.enemy_pods) * self.pods_overcome_modifier
+    #     defending_pods = 0
+    #     if max_defending_pods <= 0 or self.pods_to_move <= 0:
+    #         return
+    #     defending_zones = self.free_pods.get_zones()
+    #     print(max_defending_pods, len(defending_zones), file=sys.stderr)
+    #     defending_zones.sort(key=lambda x: x.get_attractor('enemy_pods').value + x.get_attractor('my_hq').value)
+    #     while len(defending_zones) > 0 and defending_pods < max_defending_pods and self.pods_to_move > 0:
+    #         zone = defending_zones.pop()
+    #         zone.links.sort(key=lambda x: x.get_attractor('enemy_pods').value, reverse=True)
+    #         for link in zone.links:
+    #             if link.get_attractor('enemy_pods').value > zone.get_attractor('enemy_pods').value:
+    #                 stack = min(self.pods_overcome_modifier, self.pods_to_move, self.free_pods[zone.id])
+    #                 self.pods_to_move -= stack
+    #                 self.prepared_turn.make_turn(zone, link, stack)
+    #                 value = self.free_pods.change_pods(zone, -stack)
+    #                 if value <= 0:
+    #                     break
+    #             elif link.get_attractor('enemy_pods').value == zone.get_attractor('enemy_pods').value:
+    #                 stack = min(self.pods_overcome_modifier, self.pods_to_move, self.free_pods.get_pods(zone))
+    #                 self.pods_to_move -= stack
+    #                 value = self.free_pods.change_pods(zone, -stack)
+    #                 if value <= 0:
+    #                     break
+    #             else:
+    #                 break
 
     def pods_look_around(self):
         print('pods_look_around', file=sys.stderr)
@@ -470,7 +470,8 @@ class Strategy:
         if len(pushing_structure) == 0:
             return
         pushing_structure.sort(
-            key=lambda x: x.get_attractor('enemy_menace').value - x.get_attractor('enemy_pods').value,
+            # key=lambda x: x.get_attractor('enemy_menace').value - x.get_attractor('enemy_pods').value,
+            key=lambda x: x.get_attractor('enemy_menace').value,
             reverse=True
         )
         for zone in pushing_structure:
@@ -503,18 +504,19 @@ class Strategy:
     #     print(self.pods_to_move, file=sys.stderr)
     #     if self.pods_to_move <= 0:
     #         return
-    #
-    #     for zone in self.free_pods.get_zone_iterator():
+
+    #     zones = self.free_pods.get_zones()
+    #     for zone in zones:
     #         stack = self.free_pods.get_pods(zone)
     #         if stack >= self.pack_factor:
     #             self.pods_to_move -= stack
     #             zone.links.sort(key=lambda x: x.get_attractor('enemy_hq').value)
     #             self.prepared_turn.make_turn(zone, zone.links[-1], stack)
     #             self.free_pods.drop(zone)
-    #
+
     #     print(self.pods_to_move, file=sys.stderr)
     #     return self.build_pack()
-    #
+
     # def build_pack(self):
     #     print('build_pack', file=sys.stderr)
     #     venues = self.free_pods.get_zones()
@@ -524,7 +526,7 @@ class Strategy:
     #     venue = venues.pop()
     #     self.pods_to_move -= self.free_pods.get_pods(venue)
     #     # self.free_pods.drop(venue)
-    #
+
     #     self.field.drop_attractor('venue')
     #     attractor = venue.get_attractor('venue')
     #     attractor.value = 0
@@ -542,7 +544,7 @@ class Strategy:
         reconing_pods = self.pods_look_around()
         self.pods_recon(reconing_pods)
         self.pods_push()
-        self.send_pods_to_stop_enemy()
+        # self.send_pods_to_stop_enemy()
         self.pods_attack()
 
         print('prepared_turn', self.prepared_turn, file=sys.stderr)
