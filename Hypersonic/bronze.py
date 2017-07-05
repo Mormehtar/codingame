@@ -10,111 +10,24 @@ BOMB_RANGE = 3
 BOMB_TIMER = 8
 MAX_BOMBS = 1
 
-WIDTH = 13
-HEIGHT = 11
-
-LEFT = [-1, 0]
-RIGHT = [1, 0]
-UP = [0, -1]
-DOWN = [0, 1]
-DIRECTIONS = [LEFT, RIGHT, UP, DOWN]
-
-CRATE_MODIFIER = 4
-CRATE_ITEM_MODIFIER = 8
-BOMB_MODIFIER = 1
-ITEM_MODIFIER = 8 * 5
-ENEMY_MODIFIER = 8 * 4
-BOMB_DANGER = 8 * 10
-BOMB_TRIGGER = 2
+MAX_WIDTH = 13
+MAX_HEIGHT = 11
 
 
 class Point:
+
     def __init__(self, x, y):
         self.x = x
         self.y = y
 
-    def get_direction(self, direction):
-        new_x = self.x + direction[0]
-        new_y = self.y + direction[1]
-        if new_x < 0 or new_x > WIDTH - 1:
-            return None
-        if new_y < 0 or new_y > HEIGHT - 1:
-            return None
-        return Point(new_x, new_y)
-
-    def get_distance(self, other):
-        return abs(self.x - other.x) + abs(self.y - other.y)
-
-    def __hash__(self):
-        return self.x * HEIGHT + self.y
-
-    def __eq__(self, other):
-        return self.x == other.x and self.y == other.y
-
     def __str__(self):
         return "{} {}".format(self.x, self.y)
 
+    def __hash__(self):
+        return self.x * MAX_HEIGHT + self.y
 
-class Player:
-    def __init__(self, player_id, bomb_range=BOMB_RANGE):
-        self.id = player_id
-        self.position = None
-        self.bombs = MAX_BOMBS
-        self.bomb_range = bomb_range
-
-    def update(self, position, bombs, bomb_range):
-        self.position = position
-        self.bombs = bombs
-        self.bomb_range = bomb_range
-
-
-class Crate:
-    def __init__(self, position, crate_type, game_field):
-        self.position = position
-        self.valid = True
-        self.field = game_field
-        self.type = crate_type
-
-    def invalidate(self):
-        self.valid = False
-
-
-class Bomb:
-    def __init__(self, position, timer, bomb_range=BOMB_RANGE):
-        self.position = position
-        self.timer = timer
-        self.bomb_range = bomb_range
-
-
-EMPTY = "."
-EMPTY_CRATE = "0"
-CRATE_ITEM = "1"
-CRATE_ITEM2 = "2"
-BOMB = "B"
-ENEMY = "E"
-ME = "M"
-ITEM = "I"
-WALL = "X"
-
-
-class Item:
-    def __init__(self, position, item_type):
-        self.position = position
-        self.type = item_type
-
-
-class FieldElement:
-    def __init__(self, position, game_field):
-        self.position = position
-        self.field = game_field
-        self.type = ENEMY
-        self.obj = None
-        self.potential = 0
-
-    def update(self, obj_type, obj=None):
-        self.type = obj_type
-        self.obj = obj
-        self.potential = 0
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y
 
 
 class Turn:
@@ -132,148 +45,306 @@ class Turn:
         return "{} {}".format("BOMB" if self.bomb else "MOVE", self.position)
 
 
-class Field:
-    def __init__(self):
-        self.field = {}
-        for i in range(WIDTH):
-            for j in range(HEIGHT):
-                position = Point(i, j)
-                self.field[position] = FieldElement(position, self)
-        self.crates = []
+class Player:
+    def __init__(self, player_id):
+        self.id = player_id
+        self.bombs = MAX_BOMBS
+        self.bomb_range = BOMB_RANGE
+        self.position = None
+
+    def update(self, position, bombs, bomb_range):
+        self.position = position
+        self.bombs = bombs
+        self.bomb_range = bomb_range
+
+
+class Bomb:
+    def __init__(self, owner, position, timer, bomb_range):
+        self.owner = owner
+        self.position = position
+        self.timer = timer
+        self.range = bomb_range
+        self.conglomerate = None
+
+    def add_to_conglomerate(self, conglomerate):
+        self.conglomerate = conglomerate
+        conglomerate.add_bomb(self)
+
+    def is_in_conglamerate(self):
+        return not self.conglomerate is None
+
+
+class Item:
+    def __init__(self, position, item_type):
+        self.position = position
+        self.type = item_type
+
+
+class FieldPoint:
+
+    EMPTY = "."
+    WALL = "X"
+    EMPTY_CRATE = "0"
+
+    def __init__(self, position, field):
+        self.position = position
+        self.field = field
+        self.type = self.EMPTY
+        self.obj = None
+        self.trajectory = math.inf
+        self.exploded = False
+        self.priority = -math.inf
+
+    def update(self, field_type):
+        self.type = field_type
+        self.obj = None
+        self.trajectory = math.inf
+        self.exploded = False
+        self.priority = -math.inf
+
+    def update_with_object(self, obj):
+        self.obj = obj
+
+    def is_empty(self):
+        return self.obj is None and self.type == self.EMPTY
+
+    def is_crate(self):
+        return self.type.isdigit()
+
+    def is_empty_crate(self):
+        return self.type == self.EMPTY_CRATE
+
+    def is_crate_with_item(self):
+        return self.is_crate() and not self.is_empty_crate()
+
+    def is_bomb(self):
+        return type(self.obj) is Bomb
+
+    def is_item(self):
+        return type(self.obj) is Item
+
+    def is_player(self):
+        return type(self.obj) is Player
+
+    def is_wall(self):
+        return self.type == self.WALL
+
+    def is_impassable(self):
+        return self.is_crate() or self.is_bomb() or self.is_wall()
+
+
+class BombConglamerate:
+    def __init__(self, field):
         self.bombs = []
+        self.timer = math.inf
+        self.field = field
+
+    def add_bomb(self, bomb):
+        self.bombs.append(bomb)
+        self.timer = min(self.timer, bomb.timer)
+
+
+class Field:
+
+    LEFT = [-1, 0]
+    RIGHT = [1, 0]
+    UP = [0, -1]
+    DOWN = [0, 1]
+    DIRECTIONS = [LEFT, RIGHT, UP, DOWN]
+
+    EMPTY_CRATE_PRIORITY = 8
+    ITEM_CRATE_PRIORITY = EMPTY_CRATE_PRIORITY * 2
+    ITEM_PRIORITY = ITEM_CRATE_PRIORITY * 5
+    ENEMY_PRIORITY = ITEM_CRATE_PRIORITY * 6
+
+    BOMB_IN_FUTURE = 1
+    BOMB_DANGER = -ITEM_CRATE_PRIORITY * 7
+
+    def __init__(self, players, my_id, width, height):
+
+        self.TYPES = {
+            1: self.update_player,
+            2: self.update_bomb,
+            3: self.update_item
+        }
+
+        self.width = width
+        self.height = height
+
+        self.players = players
+        self.me = players[my_id]
+        self.enemies = [player for player in players if player.id != my_id]
+
+        self.field = {}
+        for x in range(width):
+            for y in range(height):
+                point = Point(x, y)
+                self.field[point] = FieldPoint(Point(x, y), self)
+
+        self.bombs = []
+        self.bomb_conglomerates = []
         self.items = []
+        self.crates = []
 
     def start_turn(self):
-        self.crates = []
         self.bombs = []
         self.items = []
+        self.bomb_conglomerates = []
+        self.crates = []
 
-    def update(self, position, field_type, obj=None):
-        print("update", position, field_type, file=sys.stderr)
-        if field_type == EMPTY_CRATE or field_type == CRATE_ITEM or field_type == CRATE_ITEM2:
-            field_type = EMPTY_CRATE
-            if obj is None:
-                obj = Crate(position, field_type, self)
-            self.crates.append(obj)
-            print("I'm crate!", file=sys.stderr)
-        elif field_type == BOMB:
-            self.bombs.append(obj)
-            print("I'm bomb!", file=sys.stderr)
-        elif field_type == ITEM:
-            self.items.append(obj)
-            print("I'm item!", file=sys.stderr)
-        self.field[position].update(field_type, obj)
+    def get_direction(self, point, direction):
+        new_x = point.x + direction[0]
+        new_y = point.y + direction[1]
+        if new_x < 0 or new_x > self.width - 1:
+            return None
+        if new_y < 0 or new_y > self.height - 1:
+            return None
+        return Point(new_x, new_y)
 
-    def finalize_field(self):
-        print('bombs', len(self.bombs), file=sys.stderr)
-        print('crates', len(self.crates), file=sys.stderr)
-        print('items', len(self.items), file=sys.stderr)
+    def update_player(self, owner, position, bombs, bomb_range):
+        self.players[owner].update(position, bombs, bomb_range)
+        self.field[position].update_with_object(self.players[owner])
+
+    def update_bomb(self, owner, position, timer, bomb_range):
+        bomb = Bomb(owner, position, timer, bomb_range)
+        self.bombs.append(bomb)
+        self.field[position].update_with_object(bomb)
+
+    def update_item(self, _, position, item_type, *args):
+        item = Item(position, item_type)
+        self.items.append(item)
+        self.field[position].update_with_object(item)
+
+    def update_object(self, entity_type, owner, position, param1, param2):
+        return self.TYPES[entity_type](owner, position, param1, param2)
+
+    def update_field(self, position, field_type):
+        self.field[position].update(field_type)
+        if self.field[position].is_crate():
+            self.crates.append(position)
+
+    def build_trajectories(self, points=None):
+        if points is None:
+            points = {self.me.position}
+            self.field[self.me.position].trajectory = 0
+        to_update = set()
+        for point in points:
+            field = self.field[point]
+            distance = field.trajectory + 1
+            for direction in self.DIRECTIONS:
+                new_point = self.get_direction(point, direction)
+                if new_point is None:
+                    continue
+                new_field = self.field[new_point]
+                if new_field.trajectory > distance:
+                    new_field.trajectory = distance
+                    to_update.add(new_point)
+        if len(to_update) > 0:
+            self.build_trajectories(to_update)
+
+    def build_bombs_conglomerates(self):
         for bomb in self.bombs:
-            print("BOMB!", bomb.position, file=sys.stderr)
-            for direction in DIRECTIONS:
-                position = bomb.position
-                for i in range(bomb.bomb_range - 1):
-                    position = position.get_direction(direction)
-                    if position is None:
+            conglamerate = BombConglamerate(self)
+            conglamerate.add_bomb(bomb)
+            position = bomb.position
+            for direction in self.DIRECTIONS:
+                new_position = position
+                for l in range(bomb.range - 1):
+                    new_position = self.get_direction(new_position, direction)
+                    if new_position is None:
                         break
-                    local_field = self.field[position]
-                    if local_field.type == EMPTY_CRATE:
-                        local_field.obj.invalidate()
+                    field = self.field[new_position]
+                    field.exploded = True
+                    if field.is_bomb:
+                        connected_bomb = field.obj
+                        if connected_bomb.is_in_conglamerate():
+                            c = connected_bomb.conglamerate
+                            self.bomb_conglomerates.remove(c)
+                            for inner_bomb in c:
+                                conglamerate.add_bomb(inner_bomb)
+                        else:
+                            conglamerate.add_bomb(connected_bomb)
                         break
-                    if local_field.type == BOMB or local_field.type == WALL:
+                    if field.is_impassable():
                         break
-                    if bomb.timer <= bomb.bomb_range // BOMB_TRIGGER:
-                        local_field.potential -= (bomb.bomb_range // BOMB_TRIGGER - bomb.timer) * BOMB_DANGER
+            self.bomb_conglomerates.append(conglamerate)
+
+    def build_crates_priority(self):
+        for crate_position in self.crates:
+            crate_field = self.field[crate_position]
+            if crate_field.exploded:
+                continue
+            for direction in self.DIRECTIONS:
+                new_point = crate_position
+                for l in range(self.me.range - 1):
+                    new_point = self.get_direction(new_point, direction)
+                    if new_point is None:
+                        break
+                    field = self.field[new_point]
+                    if field.trajectory == math.inf:
+                        break
+                    if crate_field.is_empty_crate():
+                        field.priority += self.EMPTY_CRATE_PRIORITY
                     else:
-                        local_field.potential += (BOMB_TIMER - bomb.timer) * BOMB_MODIFIER
+                        field.priority += self.ITEM_CRATE_PRIORITY
 
-        for crate in self.crates:
-            print("CRATE!", crate.position, crate.valid, file=sys.stderr)
-            if not crate.valid:
-                continue
-            for direction in DIRECTIONS:
-                position = crate.position
-                for i in range(me.bomb_range - 1):
-                    position = position.get_direction(direction)
-                    if position is None:
-                        break
-                    local_field = self.field[position]
-                    if local_field.type == BOMB or local_field.type == EMPTY_CRATE or local_field.type == WALL:
-                        break
-                    local_field.potential += CRATE_MODIFIER if crate.type == EMPTY_CRATE else CRATE_ITEM_MODIFIER
-        for player in players:
-            if player.id == me.id:
-                continue
-            for direction in DIRECTIONS:
-                position = crate.position
-                for i in range(me.bomb_range - 1):
-                    position = position.get_direction(direction)
-                    if position is None:
-                        break
-                    local_field = self.field[position]
-                    if local_field.type == BOMB or local_field.type == EMPTY_CRATE or local_field.type == WALL:
-                        break
-                    local_field.potential += ENEMY_MODIFIER
+    def build_items_priority(self):
         for item in self.items:
-            print("ITEM!", item.position, file=sys.stderr)
-            self.field[item.position].potential = ITEM_MODIFIER
-        turn = Turn()
-        print("DO YOU WANNA BOMB?", me.bombs, self.field[me.position].potential, file=sys.stderr)
-        if me.bombs > 0 and self.field[me.position].potential >= CRATE_MODIFIER:
-            turn.plant_bomb()
+            item_field = self.field[item.position]
+            if item_field.trajectory == math.inf:
+                continue
+            item_field.priority += self.ITEM_PRIORITY
 
-        best_position = None
-        potential = -1
-        distance = math.inf
-        for i in range(WIDTH):
-            for j in range(HEIGHT):
-                point = Point(i, j)
-                new_distance = point.get_distance(me.position)
-                if potential < self.field[point].potential and \
-                        (new_distance < BOMB_TIMER + me.bomb_range - 1 or distance > BOMB_TIMER + me.bomb_range - 1):
-                    best_position = point
-                    potential = self.field[point].potential
-                    distance = new_distance
-                elif potential == self.field[point].potential and new_distance < distance:
-                    best_position = point
-                    potential = self.field[point].potential
-                    distance = new_distance
-        turn.move_to(best_position)
-        return turn
+    def build_enemy_priority(self):
+        for enemy in self.enemies:
+            enemy_field = self.field[enemy.position]
+            if enemy_field.exploded:
+                continue
+            for direction in self.DIRECTIONS:
+                new_point = enemy.position
+                for l in range(self.me.range - 1):
+                    new_point = self.get_direction(new_point, direction)
+                    if new_point is None:
+                        break
+                    field = self.field[new_point]
+                    if field.trajectory == math.inf:
+                        break
+                    field.priority += self.ENEMY_PRIORITY
+
+    def build_bombs_priorities(self):
+        pass
+    # TODO!
+
+    def process_turn(self):
+        self.build_trajectories()
+        self.build_bombs_conglomerates()
+        self.build_crates_priority()
+        self.build_items_priority()
+        self.build_enemy_priority()
+        self.build_bombs_priorities()
+
+def process_init():
+    width, height, my_id = [int(i) for i in input().split()]
+    return Field([Player(_id) for _id in range(4)], my_id, width, height)
 
 
-*_, my_id = [int(i) for i in input().split()]
-
-players = [Player(_id) for _id in range(4)]
-me = players[my_id]
-
-field = Field()
-
-# game loop
-while True:
-    field.start_turn()
-    for j in range(HEIGHT):
+def process_input(field):
+    for j in range(MAX_HEIGHT):
         row = input()
-        for i in range(WIDTH):
-            field.update(Point(i, j), row[i])
+        for i in range(MAX_WIDTH):
+            field.update_field(Point(i, j), row[i])
     entities = int(input())
     for i in range(entities):
         entity_type, owner, x, y, param_1, param_2 = [int(j) for j in input().split()]
-        if entity_type == 0:
-            if owner == my_id:
-                me.update(Point(x, y), param_1, param_2)
-                field.update(me.position, ME, me)
-            else:
-                players[owner].update(Point(x, y), param_1, param_2)
-                field.update(players[owner].position, ENEMY, players[owner])
-        elif entity_type == 1:
-            input_bomb = Bomb(Point(x, y), param_1, param_2)
-            field.update(input_bomb.position, BOMB, input_bomb)
-        else:
-            input_item = Item(Point(x, y), param_1)
-            field.update(input_item.position, ITEM, input_item)
+        field.update_object(entity_type, owner, Point(x, y), param_1, param_2)
 
-    # Write an action using print
-    # To debug: print("Debug messages...", file=sys.stderr)
 
-    print(field.finalize_field())
+def process_turn(field):
+    field.start_turn()
+    process_input(field)
+    print(field.process_turn())
+
+
+game_field = process_init()
+while True:
+    process_turn(game_field)
