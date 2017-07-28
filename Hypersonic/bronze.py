@@ -94,6 +94,7 @@ class FieldPoint:
         self.trajectory = math.inf
         self.exploded = False
         self.priority = -math.inf
+        self.explode_time = math.inf
 
     def update(self, field_type):
         self.type = field_type
@@ -101,6 +102,7 @@ class FieldPoint:
         self.trajectory = math.inf
         self.exploded = False
         self.priority = -math.inf
+        self.explode_time = math.inf
 
     def update_with_object(self, obj):
         self.obj = obj
@@ -312,8 +314,50 @@ class Field:
                     field.priority += self.ENEMY_PRIORITY
 
     def build_bombs_priorities(self):
-        pass
-    # TODO!
+        for conglomerate in self.bomb_conglomerates:
+            for bomb in conglomerate.boms:
+                for direction in self.DIRECTIONS:
+                    point = bomb.position
+                    for i in range(bomb.range - 1):
+                        new_point = self.get_direction(point, direction)
+                        if new_point is None:
+                            break
+                        field = self.field[new_point]
+                        if field.is_impassable():
+                            break
+                        field.explode_time = min(field.explode_time, conglomerate.timer)
+                        point = new_point
+        for bomb in self.bombs:
+            for direction in self.DIRECTIONS:
+                point = bomb.position
+                prev_field = self.field[point]
+                for i in range(bomb.range - 1):
+                    new_point = self.get_direction(point, direction)
+                    if new_point is None:
+                        break
+                    field = self.field[new_point]
+                    if field.is_impassable():
+                        break
+                    if field.trajectory > field.explode_time:
+                        continue
+                    if field.trajectory == field.explode_time:
+                        field.priority = self.BOMB_DANGER
+                        continue
+                    way_out = -math.inf
+                    for out_direction in self.DIRECTIONS:
+                        out_point = self.get_direction(new_point, out_direction)
+                        if out_point is None:
+                            continue
+                        out_field = self.field[out_point]
+                        if out_field.exploded or out_field.is_impassable():
+                            continue
+                        if out_field.trajectory < field.explode_time:
+                            way_out = out_field.trajectory
+                            break
+                    if way_out == -math.inf:
+                        field.priority = self.BOMB_DANGER
+                    else:
+                        field.priority += self.BOMB_IN_FUTURE
 
     def process_turn(self):
         self.build_trajectories()
@@ -322,6 +366,7 @@ class Field:
         self.build_items_priority()
         self.build_enemy_priority()
         self.build_bombs_priorities()
+
 
 def process_init():
     width, height, my_id = [int(i) for i in input().split()]
